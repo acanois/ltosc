@@ -1,4 +1,6 @@
 #include <iostream>
+#include <span>
+
 #include <asio.hpp>
 
 using asio::ip::udp;
@@ -10,83 +12,6 @@ public:
           mIoSocket(mIoContext, udp::endpoint(udp::v4(), mPort))
     {
 
-    }
-
-    static void parseMessage(const std::vector<u_char>& data) {
-        if (data.empty() || data[0] != '/') {
-            std::cerr << "Invalid OSC message format." << std::endl;
-            return;
-        }
-
-        auto addressEnd = 0;
-        for (auto i = 1; i < data.size(); ++i) {
-            if (data[i] == '\0') {
-                addressEnd = i;
-                break;
-            }
-        }
-        std::cout << "Address end: " << addressEnd << std::endl;
-        if (addressEnd == 0) {
-            std::cerr << "Invalid OSC message: missing address terminator." << std::endl;
-            return;
-        }
-
-        // Extract the address pattern
-        std::string address(data.begin(), data.begin() + addressEnd);
-        std::cout << "Address: " << address << std::endl;
-
-        // Check for type tags
-        if (addressEnd + 1 < data.size() && data[addressEnd + 1] == ',') {
-            size_t type_tags_end = 0;
-            for (size_t i = addressEnd + 2; i < data.size(); ++i) {
-                if (data[i] == '\0') {
-                    type_tags_end = i;
-                    break;
-                }
-            }
-
-            if (type_tags_end == 0) {
-                std::cerr << "Invalid OSC message: missing type tags terminator." << std::endl;
-                return;
-            }
-
-            std::string type_tags(data.begin() + addressEnd + 2, data.begin() + type_tags_end);
-            std::cout << "Type Tags: " << type_tags << std::endl;
-            std::cout << "Type Tags End: " << type_tags_end << std::endl;
-
-
-            size_t data_start = type_tags_end + 1;
-            for (char type_tag : type_tags) {
-                if (data_start >= data.size()) break;
-
-                switch (type_tag) {
-                    case 'i': {
-                        if (data_start + sizeof(int32_t) > data.size()) {
-                            std::cerr << "int32_t overflow" << std::endl;
-                            return;
-                        }
-
-                        int32_t value = 0;
-                        std::memcpy(&value, &data[data_start + sizeof(int32_t)], sizeof(int32_t));
-                        data_start += sizeof(int32_t);
-                        std::cout << "  Int: " << value << std::endl;
-                        break;
-                    }
-                    case 'f': {
-                        // Handle Float
-                        break;
-                    }
-                    case 's': { // string
-                        // handle stringd
-                        break;
-                    }
-                        // Add handlers for other data types as needed
-                    default:
-                        std::cerr << "Unsupported type tag: " << type_tag << std::endl;
-                        return;
-                }
-            }
-        }
     }
 
     void receiveMessages() {
@@ -103,7 +28,54 @@ public:
                 );
 
                 receive_buffer.resize(bytesReceived);
-                parseMessage(receive_buffer);
+
+//                for (auto i = 0; i < receive_buffer.size(); ++i) {
+//                    std::cout << i << ": " << receive_buffer[i] << std::endl;
+//                }
+
+                auto endMessageIdx = 0;
+                for (auto i = 0; i < receive_buffer.size(); ++i) {
+                    if (receive_buffer[i] == '\0') {
+                        endMessageIdx = i;
+                        break;
+                    }
+                }
+
+                std::string messageTag(receive_buffer.begin(), receive_buffer.begin() + endMessageIdx);
+                std::string dataSlice(receive_buffer.begin() + endMessageIdx, receive_buffer.end());
+
+                auto typeTagIdx = 0;
+                if (receive_buffer.at(endMessageIdx + 2) == ',') {
+                    typeTagIdx = endMessageIdx + 3;
+                }
+
+                auto typeTag = receive_buffer.at(typeTagIdx);
+
+                switch(typeTag) {
+                    case 'i': {
+                        int32_t value = 0;
+                        std::memcpy(&value, &receive_buffer.at(typeTagIdx + 2 + sizeof(int32_t)), sizeof(int32_t));
+                        std::cout << value << std::endl;
+                        break;
+                    }
+                    default: {
+                        std::cerr << "Unsupported type tag: " << typeTag << std::endl;
+                        break;
+                    }
+                }
+//                std::cout << "messageTag: " << messageTag << std::endl;
+//                std::cout << "dataSlice: " << dataSlice.length() << std::endl;
+//
+//                auto dataIndex = receive_buffer.size() - sizeof(int32_t);
+//
+//                int32_t receivedInt = 0;
+//                if (dataSlice.at(2) == ',') {
+//                    std::memcpy(&receivedInt, &receive_buffer.at(16), sizeof(int32_t));
+//                }
+//
+//                std::cout << receivedInt << std::endl;
+
+//                parseMessage(receive_buffer);
 
 //                std::string message(receive_buffer.begin(), receive_buffer.begin() + receive_buffer.size());
 //                std::cout << message << std::endl;
